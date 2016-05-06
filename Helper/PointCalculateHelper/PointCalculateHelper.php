@@ -211,49 +211,41 @@ class PointCalculateHelper
     /**
      * 仮付与ポイントを返却
      *  - 会員IDをもとに返却
-     * @return bool
+     * @return int 仮付与ポイント
      */
     public function getProvisionalAddPoint()
     {
         // 必要エンティティを判定
         if (!$this->hasEntities('Customer')) {
-            return false;
+            return 0;
         }
 
         $customer_id = $this->entities['Customer']->getId();
-        $provisionalPoint = $this->app['eccube.plugin.point.repository.point']->getAllProvisionalAddPoint($customer_id);
+        $orderIds = $this->app['eccube.plugin.point.repository.pointstatus']->selectOrderIdsWithUnfixedByCustomer($customer_id);
+        $provisionalPoint = $this->app['eccube.plugin.point.repository.point']->calcProvisionalAddPoint($orderIds);
 
-        if (!empty($provisionalPoint)) {
-            return $provisionalPoint;
-        }
-
-        return false;
+        return $provisionalPoint;
     }
 
     /**
      * 仮付与ポイントを返却
      *  - オーダー情報をもとに返却
-     * @return bool
+     * @return int 仮付与ポイント
      */
-    public function getProvisionalAddPointByOrder()
+    public function getLatestAddPointByOrder()
     {
         // 必要エンティティを判定
         if (!$this->hasEntities('Customer')) {
-            return false;
+            return 0;
         }
         if (!$this->hasEntities('Order')) {
-            return false;
+            return 0;
         }
 
         $order = $this->entities['Order'];
-        $provisionalPoint = $this->app['eccube.plugin.point.repository.point']->getProvisionalAddPointByOrder($order);
+        $provisionalPoint = $this->app['eccube.plugin.point.repository.point']->getLatestAddPointByOrder($order);
 
-
-        if (!empty($provisionalPoint)) {
-            return $provisionalPoint;
-        }
-
-        return false;
+        return $provisionalPoint;
     }
 
     /**
@@ -363,9 +355,7 @@ class PointCalculateHelper
                     $rate = $this->productRates[$node->getProduct()->getId()] / 100;
                 }
             }
-            $this->addPoint += (integer)$this->getRoundValue(
-                (($node->getProductClass()->getPrice02() * $rate) * $node->getQuantity())
-            );
+            $this->addPoint += $this->getRoundValue(($node->getProductClass()->getPrice02() * $rate) * $node->getQuantity());
         }
 
         // 減算処理の場合減算値を返却
@@ -373,7 +363,7 @@ class PointCalculateHelper
             return $this->getSubtractionCalculate();
         }
 
-        return $this->addPoint;
+        return $this->getRoundValue($this->addPoint);
     }
 
     /**
@@ -402,7 +392,7 @@ class PointCalculateHelper
         // 商品毎の付与率あればそちらを優先
         // なければサイト設定ポイントを利用
         $calculateRate = $basicPointRate;
-        if (!empty($pointRate)) {
+        if (!is_null($pointRate)) {
             $calculateRate = $pointRate;
         }
 
@@ -412,8 +402,8 @@ class PointCalculateHelper
 
         // 返却値生成
         $rate = array();
-        $rate['min'] = (integer)$this->getRoundValue($min_price * ((integer)$calculateRate / 100));
-        $rate['max'] = (integer)$this->getRoundValue($max_price * ((integer)$calculateRate / 100));
+        $rate['min'] = (integer)$this->getRoundValue($min_price * ($calculateRate / 100));
+        $rate['max'] = (integer)$this->getRoundValue($max_price * ($calculateRate / 100));
 
         return $rate;
     }
@@ -458,7 +448,7 @@ class PointCalculateHelper
 
         // 利用ポイントがない場合は処理しない.
         if (empty($this->usePoint)) {
-            return;
+            return $this->addPoint;
         }
 
         // 利用ポイント数 ＊ ポイント金額換算率 ＝ ポイント値引額
@@ -515,7 +505,7 @@ class PointCalculateHelper
         }
 
         // 基本換金値の取得
-        $pointRate = $this->pointInfo->getPlgBasicPointRate();
+        $pointRate = $this->pointInfo->getPlgPointConversionRate();
 
         return $this->getRoundValue($this->usePoint * $pointRate);
     }
@@ -549,7 +539,7 @@ class PointCalculateHelper
         // 値引き額と利用ポイント換算値を比較→相違があればポイント利用分相殺後利用ポイントセット
         $useDiscount = $this->getConversionPoint();
 
-        $diff = $currDiscount - ($lastUsePoint * $this->pointInfo->getPlgBasicPointRate());
+        $diff = $currDiscount - ($lastUsePoint * $this->pointInfo->getPlgPointConversionRate());
 
         if ($diff >= 0) {
             if ((integer)$currDiscount != (integer)$useDiscount) {
@@ -589,13 +579,8 @@ class PointCalculateHelper
         $order = $this->entities['Order'];
         $customer = $this->entities['Customer'];
 
-        // 最終保存仮利用ポイントがあるかどうかの判定
-        $usePoint = 0;
-        $lastPreUsePoint = 0;
-        $lastPreUsePoint = $this->app['eccube.plugin.point.repository.point']->getLastPreUsePoint($order);
-        if (!empty($lastPreUsePoint)) {
-            $usePoint = $lastPreUsePoint;
-        }
+        // 最終保存仮利用ポイント
+        $usePoint = $this->app['eccube.plugin.point.repository.point']->getLatestPreUsePoint($order);
 
         // 値引きを除いた支払い合計を取得
         $totalPrice = $order->getTotalPrice();
@@ -639,7 +624,7 @@ class PointCalculateHelper
         if (!empty($lastPreUsePoint)) {
             $this->app['eccube.plugin.point.history.service']->addEntity($order);
             $this->app['eccube.plugin.point.history.service']->addEntity($customer);
-            $this->app['eccube.plugin.point.history.service']->savePreUsePoint(abs($usePoint));
+            $this->app['eccube.plugin.point.history.service']->savePreUsePoint($usePoint);
         }
         // キャンセルのために「0」でログテーブルを更新
         $this->app['eccube.plugin.point.history.service']->addEntity($order);
@@ -647,9 +632,17 @@ class PointCalculateHelper
         $this->app['eccube.plugin.point.history.service']->savePreUsePoint(0);
 
         // 現在ポイントを履歴から計算
-        $calculateCurrentPoint = $this->app['eccube.plugin.point.repository.point']->getCalculateCurrentPointByCustomerId(
+        $orderIds = $this->app['eccube.plugin.point.repository.pointstatus']->selectOrderIdsWithFixedByCustomer(
             $order->getCustomer()->getId()
         );
+        $calculateCurrentPoint = $this->app['eccube.plugin.point.repository.point']->calcCurrentPoint(
+            $order->getCustomer()->getId(),
+            $orderIds
+        );
+
+        if ($calculateCurrentPoint < 0) {
+            // TODO: ポイントがマイナス！
+        }
 
         // 会員ポイント更新
         $this->app['eccube.plugin.point.repository.pointcustomer']->savePoint(
