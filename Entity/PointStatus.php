@@ -1,5 +1,13 @@
 <?php
-
+/*
+* This file is part of EC-CUBE
+*
+* Copyright(c) 2000-2016 LOCKON CO.,LTD. All Rights Reserved.
+* http://www.lockon.co.jp/
+*
+* For the full copyright and license information, please view the LICENSE
+* file that was distributed with this source code.
+*/
 
 namespace Plugin\Point\Entity;
 
@@ -7,7 +15,7 @@ use Doctrine\ORM\Mapping as ORM;
 
 /**
  * Class PointStatus
- * @package Plugin\Point\Entity
+ * @package Plugin\PointStatus\Entity
  */
 class PointStatus extends \Eccube\Entity\AbstractEntity
 {
@@ -86,7 +94,7 @@ class PointStatus extends \Eccube\Entity\AbstractEntity
      * Set customer_id
      *
      * @param integer $customer_id
-     * @return Point
+     * @return PointStatus
      */
     public function setCustomerId($customer_id)
     {

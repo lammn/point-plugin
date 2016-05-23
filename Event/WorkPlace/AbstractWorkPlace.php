@@ -1,11 +1,18 @@
 <?php
 
-
+/*
+* This file is part of EC-CUBE
+*
+* Copyright(c) 2000-2016 LOCKON CO.,LTD. All Rights Reserved.
+* http://www.lockon.co.jp/
+*
+* For the full copyright and license information, please view the LICENSE
+* file that was distributed with this source code.
+*/
 namespace Plugin\Point\Event\WorkPlace;
 
 use Eccube\Event\EventArgs;
 use Eccube\Event\TemplateEvent;
-use Symfony\Component\Form\FormBuilder;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Exception\MethodNotAllowedException;
@@ -30,11 +37,11 @@ abstract class AbstractWorkPlace
 
     /**
      * フォーム拡張処理
-     * @param FormBuilder $builder
-     * @param Request $request
-     * @return mixed
+     *
+     * @param EventArgs $event
      */
-    public function createForm(FormBuilder $builder, Request $request){
+    public function createForm(EventArgs $event)
+    {
         throw new MethodNotAllowedException();
     }
 
@@ -44,7 +51,8 @@ abstract class AbstractWorkPlace
      * @param Response $response
      * @return mixed
      */
-    public function renderView(Request $request, Response $response){
+    public function renderView(Request $request, Response $response)
+    {
         throw new MethodNotAllowedException();
     }
 
@@ -53,7 +61,8 @@ abstract class AbstractWorkPlace
      * @param TemplateEvent $event
      * @return mixed
      */
-    public function createTwig(TemplateEvent $event){
+    public function createTwig(TemplateEvent $event)
+    {
         throw new MethodNotAllowedException();
     }
 
@@ -62,7 +71,8 @@ abstract class AbstractWorkPlace
      * @param EventArgs $event
      * @return mixed
      */
-    public function save(EventArgs $event){
+    public function save(EventArgs $event)
+    {
         throw new MethodNotAllowedException();
     }
 

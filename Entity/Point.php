@@ -1,6 +1,14 @@
 <?php
 
-
+/*
+* This file is part of EC-CUBE
+*
+* Copyright(c) 2000-2016 LOCKON CO.,LTD. All Rights Reserved.
+* http://www.lockon.co.jp/
+*
+* For the full copyright and license information, please view the LICENSE
+* file that was distributed with this source code.
+*/
 namespace Plugin\Point\Entity;
 
 use Doctrine\ORM\Mapping as ORM;
@@ -27,10 +35,6 @@ class Point extends \Eccube\Entity\AbstractEntity
      * @var integer
      */
     private $customer_id;
-    /**
-     * @var integer
-     */
-    private $plg_point_product_rate_id;
     /**
      * @var integer
      */
@@ -135,29 +139,6 @@ class Point extends \Eccube\Entity\AbstractEntity
     public function getCustomerId()
     {
         return $this->customer_id;
-    }
-
-    /**
-     * Set plg_point_product_rate_id
-     *
-     * @param integer $plg_point_product_rate_id
-     * @return Point
-     */
-    public function setPlgPointProductRateId($plg_point_product_rate_id)
-    {
-        $this->plg_point_product_rate_id = $plg_point_product_rate_id;
-
-        return $this;
-    }
-
-    /**
-     * Get plg_point_product_rate_id
-     *
-     * @return integer
-     */
-    public function getPlgPointProductRateId()
-    {
-        return $this->plg_point_product_rate_id;
     }
 
     /**

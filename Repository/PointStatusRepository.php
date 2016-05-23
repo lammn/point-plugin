@@ -1,11 +1,18 @@
 <?php
 
-
+/*
+* This file is part of EC-CUBE
+*
+* Copyright(c) 2000-2016 LOCKON CO.,LTD. All Rights Reserved.
+* http://www.lockon.co.jp/
+*
+* For the full copyright and license information, please view the LICENSE
+* file that was distributed with this source code.
+*/
 namespace Plugin\Point\Repository;
 
 use Doctrine\ORM\EntityRepository;
 use Doctrine\ORM\NoResultException;
-use Plugin\Point\Entity\PointStatus;
 
 /**
  * Class PointStatusRepository
@@ -29,8 +36,10 @@ class PointStatusRepository extends EntityRepository
             ->select('p.order_id')
             ->andWhere('p.customer_id = :customer_id')
             ->andWhere('p.status = :status')
+            ->andWhere('p.del_flg = :del_flg')
             ->setParameter('customer_id', $customer_id)
-            ->setParameter('status', PointStatusRepository::POINT_STATUS_UNFIX);
+            ->setParameter('status', PointStatusRepository::POINT_STATUS_UNFIX)
+            ->setParameter('del_flg', 0);
 
         $result = $qb->getQuery()->getScalarResult();
 
@@ -54,8 +63,10 @@ class PointStatusRepository extends EntityRepository
             ->select('p.order_id')
             ->andWhere('p.customer_id = :customer_id')
             ->andWhere('p.status = :status')
+            ->andWhere('p.del_flg = :del_flg')
             ->setParameter('customer_id', $customer_id)
-            ->setParameter('status', PointStatusRepository::POINT_STATUS_FIX);
+            ->setParameter('status', PointStatusRepository::POINT_STATUS_FIX)
+            ->setParameter('del_flg', 0);
 
         $result = $qb->getQuery()->getScalarResult();
 

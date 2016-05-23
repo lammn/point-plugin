@@ -1,14 +1,17 @@
 <?php
 
-
+/*
+* This file is part of EC-CUBE
+*
+* Copyright(c) 2000-2016 LOCKON CO.,LTD. All Rights Reserved.
+* http://www.lockon.co.jp/
+*
+* For the full copyright and license information, please view the LICENSE
+* file that was distributed with this source code.
+*/
 namespace Plugin\Point\Event\WorkPlace;
 
-use Eccube\Event\EventArgs;
 use Eccube\Event\TemplateEvent;
-use Symfony\Component\Form\FormBuilder;
-use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Routing\Exception\MethodNotAllowedException;
 use Symfony\Component\Validator\Constraints as Assert;
 
 /**
@@ -55,7 +58,7 @@ class FrontHistory extends AbstractWorkPlace
         $calculator->setUsePoint($usePoint);
 
         // 付与ポイント取得
-        $addPoint = $calculator->getAddPointByOrder();
+        $addPoint = $this->app['eccube.plugin.point.repository.point']->getLatestAddPointByOrder($parameters['Order']);
 
         // 付与ポイント取得判定
         if (empty($addPoint)) {
@@ -73,12 +76,12 @@ class FrontHistory extends AbstractWorkPlace
         // ポイント情報表示
         // false が返却された際は、利用ポイント値が保有ポイント値を超えている
         $point['use'] = $usePoint;
-        $snippet = $this->app->render(
+        $snippet = $this->app->renderView(
             'Point/Resource/template/default/Event/History/point_summary.twig',
             array(
                 'point' => $point,
             )
-        )->getContent();
+        );
 
 
         $search = '<p id="summary_box__payment_total"';

@@ -2,6 +2,7 @@
 
 namespace Plugin\Point;
 
+use Eccube\Entity\Master\DeviceType;
 use Eccube\Entity\PageLayout;
 use Eccube\Plugin\AbstractPluginManager;
 use Plugin\Point\Entity\PointInfo;
@@ -13,15 +14,11 @@ use Plugin\Point\Entity\PointInfo;
  */
 class PluginManager extends AbstractPluginManager
 {
-    /** @var \Eccube\Application */
-    protected $app;
-
     /**
      * PluginManager constructor.
      */
     public function __construct()
     {
-        $this->app = \Eccube\Application::getInstance();
     }
 
     /**
@@ -53,34 +50,33 @@ class PluginManager extends AbstractPluginManager
         $this->migrationSchema($app, __DIR__.'/Resource/doctrine/migration', $config['code']);
 
         // ポイント基本設定のデフォルト値を登録
-        $PointInfo = $this->app['orm.em']
+        $PointInfo = $app['orm.em']
             ->getRepository('Plugin\Point\Entity\PointInfo')
             ->getLastInsertData();
         if (is_null($PointInfo)) {
             $PointInfo = new PointInfo();
             $PointInfo
-                ->setPlgAddPointStatus(1)
+                ->setPlgAddPointStatus($app['config']['order_deliv'])   // ポイントの確定ステータス：発送済み
                 ->setPlgBasicPointRate(1)
                 ->setPlgPointConversionRate(1)
-                ->setPlgRoundType(1)
-                ->setPlgCalculationType(1);
+                ->setPlgRoundType(PointInfo::POINT_ROUND_CEIL) // 切り上げ
+                ->setPlgCalculationType(PointInfo::POINT_CALCULATE_NORMAL); // 減算なし
 
-            $this->app['orm.em']->persist($PointInfo);
-            $this->app['orm.em']->flush($PointInfo);
+            $app['orm.em']->persist($PointInfo);
+            $app['orm.em']->flush($PointInfo);
         }
 
         // ページレイアウトにプラグイン使用時の値を代入
-        $deviceType = $this->app['eccube.repository.master.device_type']->findOneById(10);
+        $deviceType = $app['eccube.repository.master.device_type']->findOneById(DeviceType::DEVICE_TYPE_PC);
         $pageLayout = new PageLayout();
-        $pageLayout->setId(null);
         $pageLayout->setDeviceType($deviceType);
         $pageLayout->setFileName('../../Plugin/Point/Resource/template/default/point_use');
-        $pageLayout->setEditFlg(2);
+        $pageLayout->setEditFlg(PageLayout::EDIT_FLG_DEFAULT);
         $pageLayout->setMetaRobots('noindex');
         $pageLayout->setUrl('point_use');
-        $pageLayout->setName('商品購入確認/利用ポイント');
-        $this->app['orm.em']->persist($pageLayout);
-        $this->app['orm.em']->flush($pageLayout);
+        $pageLayout->setName('商品購入/利用ポイント');
+        $app['orm.em']->persist($pageLayout);
+        $app['orm.em']->flush($pageLayout);
     }
 
     /**
@@ -91,10 +87,10 @@ class PluginManager extends AbstractPluginManager
     public function disable($config, $app)
     {
         // ページ情報の削除
-        $pageLayout = $this->app['eccube.repository.page_layout']->findByUrl('point_use');
+        $pageLayout = $app['eccube.repository.page_layout']->findByUrl('point_use');
         foreach ($pageLayout as $deleteNode) {
-            $this->app['orm.em']->remove($deleteNode);
-            $this->app['orm.em']->flush($deleteNode);
+            $app['orm.em']->remove($deleteNode);
+            $app['orm.em']->flush($deleteNode);
         }
     }
 

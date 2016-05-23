@@ -1,13 +1,21 @@
 <?php
 
-
+/*
+* This file is part of EC-CUBE
+*
+* Copyright(c) 2000-2016 LOCKON CO.,LTD. All Rights Reserved.
+* http://www.lockon.co.jp/
+*
+* For the full copyright and license information, please view the LICENSE
+* file that was distributed with this source code.
+*/
 namespace Plugin\Point\Helper\PointHistoryHelper;
 
 use Doctrine\DBAL\Exception\DatabaseObjectNotFoundException;
-use Plugin\Point\Entity\PointSnapshot;
+use Eccube\Entity\Order;
 use Plugin\Point\Entity\Point;
+use Plugin\Point\Entity\PointSnapshot;
 use Plugin\Point\Entity\PointStatus;
-use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
  * ポイント履歴ヘルパー
@@ -29,11 +37,10 @@ class PointHistoryHelper
     const HISTORY_MESSAGE_TYPE_USE = '利用';
 
     // 保存内容(ポイント種別)
-    const STATE_CURRENT = 1;
-    const STATE_PRE_ADD = 2;
-    const STATE_ADD = 3;
-    const STATE_USE = 4;
-    const STATE_PRE_USE = 5;
+    const STATE_CURRENT = 1; // 会員編集画面から手動更新される保有ポイント
+    const STATE_ADD = 3;    // 加算ポイント
+    const STATE_USE = 4;    // 利用ポイント
+    const STATE_PRE_USE = 5;    // 仮利用ポイント(購入中に利用ポイントとして登録されるポイント)
 
     protected $app;                 // アプリケーション
     protected $entities;            // 保存時エンティティコレクション
@@ -44,9 +51,9 @@ class PointHistoryHelper
     /**
      * PointHistoryHelper constructor.
      */
-    public function __construct()
+    public function __construct($app)
     {
-        $this->app = \Eccube\Application::getInstance();
+        $this->app = $app;
         // 全てINSERTのために保存用エンティティを再生成
         $this->refreshEntity();
         // ポイント基本情報設定値
@@ -196,7 +203,7 @@ class PointHistoryHelper
         $this->entities['Point']->setPlgPointId(null);
         $this->entities['Point']->setCustomer($this->entities['Customer']);
         $this->entities['Point']->setPointInfo($this->entities['PointInfo']);
-        $this->entities['Point']->setPlgDynamicPoint($point);
+        $this->entities['Point']->setPlgDynamicPoint((integer)$point);
         $this->entities['Point']->setPlgPointActionName($this->historyActionType.$this->currentActionName);
         $this->entities['Point']->setPlgPointType($this->historyType);
         try {
@@ -221,8 +228,9 @@ class PointHistoryHelper
         }
         $this->entities['SnapShot']->setPlgPointSnapshotId(null);
         $this->entities['SnapShot']->setCustomer($this->entities['Customer']);
+        $this->entities['SnapShot']->setOrder($this->hasEntity('Order') ? $this->entities['Order'] : null);
         $this->entities['SnapShot']->setPlgPointAdd($point['add']);
-        $this->entities['SnapShot']->setPlgPointCurrent($point['current']);
+        $this->entities['SnapShot']->setPlgPointCurrent((integer)$point['current']);
         $this->entities['SnapShot']->setPlgPointUse($point['use']);
         $this->entities['SnapShot']->setPlgPointSnapActionName($this->currentActionName);
         try {
@@ -279,15 +287,37 @@ class PointHistoryHelper
     public function fixPointStatus()
     {
         $orderId = $this->entities['Order']->getId();
+        $PointStatus = $this->app['eccube.plugin.point.repository.pointstatus']->findOneBy(
+            array('order_id' => $orderId)
+        );
+        if (!$PointStatus instanceof PointStatus) {
+            $PointStatus = new PointStatus();
+            $PointStatus->setDelFlg(0);
+            $PointStatus->setOrderId($this->entities['Order']->getId());
+            $PointStatus->setCustomerId($this->entities['Customer']->getId());
+            $this->app['orm.em']->persist($PointStatus);
+        }
+        /** @var PointStatus $pointStatus */
+        $PointStatus->setStatus($this->app['eccube.plugin.point.repository.pointstatus']->getFixStatusValue());
+        $PointStatus->setPointFixDate(new \DateTime());
+        $this->app['orm.em']->flush($PointStatus);
+    }
+
+    /**
+     *  ポイントステータスを削除状態にする
+     * @param Order $order 対象オーダー
+     */
+    public function deletePointStatus(Order $order)
+    {
+        $orderId = $order->getId();
         $pointStatus = $this->app['eccube.plugin.point.repository.pointstatus']->findOneBy(
             array('order_id' => $orderId)
         );
         if (!$pointStatus) {
-            throw new NotFoundHttpException();
+            return;
         }
         /** @var PointStatus $pointStatus */
-        $pointStatus->setStatus($this->app['eccube.plugin.point.repository.pointstatus']->getFixStatusValue());
-        $pointStatus->setPointFixDate(new \DateTime());
-        $this->app['orm.em']->flush();
+        $pointStatus->setDelFlg(1);
+        $this->app['orm.em']->flush($pointStatus);
     }
 }

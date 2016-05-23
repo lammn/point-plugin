@@ -1,14 +1,19 @@
 <?php
-
+/*
+* This file is part of EC-CUBE
+*
+* Copyright(c) 2000-2016 LOCKON CO.,LTD. All Rights Reserved.
+* http://www.lockon.co.jp/
+*
+* For the full copyright and license information, please view the LICENSE
+* file that was distributed with this source code.
+*/
 
 namespace Plugin\Point\Event\WorkPlace;
 
 use Eccube\Event\EventArgs;
-use Eccube\Event\TemplateEvent;
 use Symfony\Component\Form\FormBuilder;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Routing\Exception\MethodNotAllowedException;
 use Symfony\Component\Validator\Constraints as Assert;
 
 /**
@@ -22,18 +27,19 @@ class  AdminProduct extends AbstractWorkPlace
 {
     /**
      * 商品フォームポイント付与率項目追加
-     * @param FormBuilder $builder
-     * @param Request $request
+     *
+     * @param EventArgs $event
      */
-    public function createForm(FormBuilder $builder, Request $request)
+    public function createForm(EventArgs $event)
     {
-        $productId = $builder->getForm()->getData()->getId();
+        $builder = $event->getArgument('builder');
+        $Product = $event->getArgument('Product');
 
         // 登録済み情報取得処理
         $lastPointProduct = null;
-        if (!is_null($productId)) {
+        if (!is_null($Product->getId())) {
             $lastPointProduct = $this->app['eccube.plugin.point.repository.pointproductrate']->getLastPointProductRateById(
-                $productId
+                $Product->getId()
             );
         }
 
@@ -47,9 +53,6 @@ class  AdminProduct extends AbstractWorkPlace
                     'required' => false,
                     'mapped' => false,
                     'data' => $lastPointProduct,
-                    'attr' => array(
-                        'placeholder' => '設定されていると本商品のみ設定値をもとにポイントを計算します。',
-                    ),
                     'constraints' => array(
                         new Assert\Regex(
                             array(
@@ -75,39 +78,35 @@ class  AdminProduct extends AbstractWorkPlace
      */
     public function save(EventArgs $event)
     {
+        $this->app['monolog.point.admin']->addInfo('save start');
+
         // フォーム情報取得処理
         $form = $event->getArgument('form');
-
-        if (empty($form)) {
-            return false;
-        }
 
         // ポイント付与率取得
         $pointRate = $form->get('plg_point_product_rate')->getData();
 
-        // 商品ID取得
-        $productId = $form->getData()->getId();
-        if(empty($productId)){
-            $productId = 0;
-        }
+        $Product = $event->getArgument('Product');
 
         // 前回入力値と比較
         $status = $this->app['eccube.plugin.point.repository.pointproductrate']
-            ->isSamePoint($pointRate, $productId);
+            ->isSamePoint($pointRate, $Product->getId());
+
+        $this->app['monolog.point.admin']->addInfo('save add product point', array(
+                'product_id' => $Product->getId(),
+                'status' => $status,
+                'add point' => $pointRate,
+            )
+        );
 
         // 前回入力値と同じ値であれば登録をキャンセル
         if ($status) {
             return true;
         }
 
-        // プロダクトエンティティを取得
-        $product = $event->getArgument('Product');
-
-        if (empty($product)) {
-            return false;
-        }
-
         // ポイント付与保存処理
-        $this->app['eccube.plugin.point.repository.pointproductrate']->savePointProductRate($pointRate, $product);
+        $this->app['eccube.plugin.point.repository.pointproductrate']->savePointProductRate($pointRate, $Product);
+
+        $this->app['monolog.point.admin']->addInfo('save end');
     }
 }

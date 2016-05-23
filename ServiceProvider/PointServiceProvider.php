@@ -1,14 +1,29 @@
 <?php
-
+/*
+* This file is part of EC-CUBE
+*
+* Copyright(c) 2000-2016 LOCKON CO.,LTD. All Rights Reserved.
+* http://www.lockon.co.jp/
+*
+* For the full copyright and license information, please view the LICENSE
+* file that was distributed with this source code.
+*/
 namespace Plugin\Point\ServiceProvider;
 
-use Plugin\Point\Doctrine\Listener\ORMListener;
-use Plugin\Point\Helper\EventRoutineWorksHelper\EventRoutineWorksHelper;
-use Plugin\Point\Helper\EventRoutineWorksHelper\EventRoutineWorksHelperFactory;
+use Eccube\Application;
+use Monolog\Formatter\LineFormatter;
+use Monolog\Handler\FingersCrossed\ErrorLevelActivationStrategy;
+use Monolog\Handler\FingersCrossedHandler;
+use Monolog\Handler\RotatingFileHandler;
+use Monolog\Processor\IntrospectionProcessor;
+use Monolog\Processor\ProcessIdProcessor;
+use Monolog\Processor\WebProcessor;
+use Plugin\Point\Helper\MailHelper;
 use Plugin\Point\Helper\PointCalculateHelper\PointCalculateHelper;
 use Plugin\Point\Helper\PointHistoryHelper\PointHistoryHelper;
 use Silex\Application as BaseApplication;
 use Silex\ServiceProviderInterface;
+use Symfony\Bridge\Monolog\Logger;
 
 /**
  * Class PointServiceProvider
@@ -56,17 +71,17 @@ class PointServiceProvider implements ServiceProviderInterface
             }
         );
 
+        /** 不適切な受注記録テーブル用リポジトリ */
+        $app['eccube.plugin.point.repository.pointabuse'] = $app->share(
+            function () use ($app) {
+                return $app['orm.em']->getRepository('Plugin\Point\Entity\PointAbuse');
+            }
+        );
+
         /** ポイント機能基本情報テーブル用リポジトリ */
         $app['eccube.plugin.point.repository.pointinfo'] = $app->share(
             function () use ($app) {
                 return $app['orm.em']->getRepository('Plugin\Point\Entity\PointInfo');
-            }
-        );
-
-        /** ポイント付与タイミング受注ステータス保存テーブル用リポジトリ */
-        $app['eccube.plugin.point.repository.pointinfo.addstatus'] = $app->share(
-            function () use ($app) {
-                return $app['orm.em']->getRepository('Plugin\Point\Entity\PointInfoAddStatus');
             }
         );
 
@@ -96,9 +111,9 @@ class PointServiceProvider implements ServiceProviderInterface
          */
         $app['form.types'] = $app->share($app->extend('form.types', function ($types) use ($app) {
             $types[] = new \Plugin\Point\Form\Type\PointInfoType($app);
-
+            $types[] = new \Plugin\Point\Form\Type\PointUseType($app);
             return $types;
-            })
+        })
         );
 
         /**
@@ -109,7 +124,7 @@ class PointServiceProvider implements ServiceProviderInterface
                 'config',
                 function ($config) {
                     $addNavi['id'] = "point_info";
-                    $addNavi['name'] = "ポイント管理";
+                    $addNavi['name'] = "ポイント設定";
                     $addNavi['url'] = "point_info";
                     $nav = $config['nav'];
                     foreach ($nav as $key => $val) {
@@ -125,13 +140,6 @@ class PointServiceProvider implements ServiceProviderInterface
         );
 
         /**
-         * フックポイントイベント定型処理ヘルパーファクトリー登録
-         */
-        $app['eccube.plugin.point.hookpoint.routinework'] = $app->protect(function ($class) {
-            return new EventRoutineWorksHelper($class);
-        });
-
-        /**
          * ポイント計算処理サービスファクトリー登録
          */
         $app['eccube.plugin.point.calculate.helper.factory'] = $app->share(
@@ -144,8 +152,17 @@ class PointServiceProvider implements ServiceProviderInterface
          * ポイント履歴ヘルパー登録
          */
         $app['eccube.plugin.point.history.service'] = $app->share(
-            function () {
-                return new PointHistoryHelper();
+            function () use ($app) {
+                return new PointHistoryHelper($app);
+            }
+        );
+
+        /**
+         * メール送信ヘルパー登録
+         */
+        $app['eccube.plugin.point.mail.helper'] = $app->share(
+            function () use ($app) {
+                return new MailHelper($app);
             }
         );
 
@@ -166,6 +183,13 @@ class PointServiceProvider implements ServiceProviderInterface
                 }
             )
         );
+
+        // ログファイル設定
+        $app['monolog.point'] = $this->initLogger($app, 'point');
+
+        // ログファイル管理画面用設定
+        $app['monolog.point.admin'] = $this->initLogger($app, 'point_admin');
+
     }
 
     /**
@@ -176,4 +200,65 @@ class PointServiceProvider implements ServiceProviderInterface
     public function boot(BaseApplication $app)
     {
     }
+
+    /**
+     * ポイントプラグイン用ログファイルの初期設定
+     *
+     * @param BaseApplication $app
+     * @param $logFileName
+     * @return \Closure
+     */
+    protected function initLogger(BaseApplication $app, $logFileName)
+    {
+
+        return $app->share(function ($app) use ($logFileName) {
+            $logger = new $app['monolog.logger.class']('plugin.point');
+            $file = $app['config']['root_dir'].'/app/log/'.$logFileName.'.log';
+            $RotateHandler = new RotatingFileHandler($file, $app['config']['log']['max_files'], Logger::INFO);
+            $RotateHandler->setFilenameFormat(
+                $logFileName.'_{date}',
+                'Y-m-d'
+            );
+
+            $token = substr($app['session']->getId(), 0, 8);
+            $format = "[%datetime%] [".$token."] %channel%.%level_name%: %message% %context% %extra%\n";
+            // $RotateHandler->setFormatter(new LineFormatter($format, null, false, true));
+            $RotateHandler->setFormatter(new LineFormatter($format));
+
+            $logger->pushHandler(
+                new FingersCrossedHandler(
+                    $RotateHandler,
+                    new ErrorLevelActivationStrategy(Logger::INFO)
+                )
+            );
+
+            $logger->pushProcessor(function ($record) {
+                // 出力ログからファイル名を削除し、lineを最終項目にセットしなおす
+                unset($record['extra']['file']);
+                $line = $record['extra']['line'];
+                unset($record['extra']['line']);
+                $record['extra']['line'] = $line;
+
+                return $record;
+            });
+
+            $ip = new IntrospectionProcessor();
+            $logger->pushProcessor($ip);
+
+            $web = new WebProcessor();
+            $logger->pushProcessor($web);
+
+            // $uid = new UidProcessor(8);
+            // $logger->pushProcessor($uid);
+
+            $process = new ProcessIdProcessor();
+            $logger->pushProcessor($process);
+
+
+            return $logger;
+        });
+
+    }
+
+
 }

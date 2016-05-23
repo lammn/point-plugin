@@ -1,11 +1,20 @@
 <?php
-
+/*
+* This file is part of EC-CUBE
+*
+* Copyright(c) 2000-2016 LOCKON CO.,LTD. All Rights Reserved.
+* http://www.lockon.co.jp/
+*
+* For the full copyright and license information, please view the LICENSE
+* file that was distributed with this source code.
+*/
 
 namespace Plugin\Point\Repository;
 
 use Doctrine\ORM\EntityManager;
 use Doctrine\ORM\EntityRepository;
 use Doctrine\ORM\NoResultException;
+use Plugin\Point\Entity\PointInfo;
 
 /**
  * Class PointInfoRepository
@@ -13,9 +22,6 @@ use Doctrine\ORM\NoResultException;
  */
 class PointInfoRepository extends EntityRepository
 {
-    /** @var \Eccube\Application */
-    protected $app;
-
     /**
      * PointInfoRepository constructor.
      * @param EntityManager $em
@@ -24,7 +30,6 @@ class PointInfoRepository extends EntityRepository
     public function __construct(EntityManager $em, \Doctrine\ORM\Mapping\ClassMetadata $class)
     {
         parent::__construct($em, $class);
-        $this->app = \Eccube\Application::getInstance();
     }
 
     /**
@@ -34,18 +39,15 @@ class PointInfoRepository extends EntityRepository
      * @return bool
      * @throws NoResultException
      */
-    public function save(\Plugin\Point\Entity\PointInfo $pointInfo)
+    public function save(\Plugin\Point\Entity\PointInfo $src)
     {
-        try {
-            //保存処理(登録)
-            $em = $this->getEntityManager();
-            $em->persist($pointInfo);
-            $em->flush();
-
-            return true;
-        } catch (NoResultException $e) {
-            throw new NoResultException();
-        }
+        $dist = new PointInfo();
+        $dist->copyProperties($src, array('plg_point_info_id'));
+        $dist->setCreateDate(new \DateTime());
+        $dist->setUpdateDate(new \DateTime());
+        $em = $this->getEntityManager();
+        $em->persist($dist);
+        $em->flush($dist);
     }
 
     /**
@@ -56,20 +58,13 @@ class PointInfoRepository extends EntityRepository
     public function getLastInsertData()
     {
         try {
-            // アソシエーションデータを含む最終データ取得のために親データの最終IDを取得
             $qb = $this->createQueryBuilder('pi')
-                ->orderBy('pi.create_date', 'DESC')
+                ->orderBy('pi.plg_point_info_id', 'DESC')
                 ->setMaxResults(1);
 
+            $PointInfo = $qb->getQuery()->getSingleResult();
 
-            $result = $qb->getQuery()->getOneOrNullResult();
-
-            // エラー判定
-            if (is_null($result)) {
-                return null;
-            }
-
-            return $result;
+            return $PointInfo;
         } catch (NoResultException $e) {
             return null;
         }

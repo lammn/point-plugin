@@ -14,10 +14,19 @@ admin.customer.edit.index.complete:
 ## 管理画面 > 受注登録 (編集) > 利用ポイントフォーム生成
 admin.order.edit.index.initialize:
     - [onAdminOrderEditIndexInitialize, NORMAL]
-admin.order.edit.index.progress:
-    - [onAdminOrderEditIndexProgress, NORMAL]
 admin.order.edit.index.complete:
     - [onAdminOrderEditIndexComplete, NORMAL]
+
+## 管理画面 > 受注一覧
+admin.order.delete.complete:
+    - [onAdminOrderDeleteComplete, NORMAL]
+
+## 管理画面 > メール通知
+admin.order.mail.index.complete:
+    - [onAdminOrderMailIndexComplete, NORMAL]
+
+admin.order.mail.mail.all.complete:
+    - [onAdminOrderMailIndexComplete, NORMAL]
 
 # フロント画面
 ## フロント画面 > 商品購入確認完了(ポイント利用処理)
@@ -26,29 +35,37 @@ front.shopping.confirm.processing:
 ## フロント画面 > 商品購入完了(ポイント登録)
 service.shopping.notify.complete:
     - [onServiceShoppingNotifyComplete, NORMAL]
+## フロント画面 > 商品購入完了の画面
+Shopping/complete.twig:
+    - [onRenderShoppingComplete, NORMAL]
 
-## 配送先関連
-front.mypage.delivery.edit.complete:
-    - [Delivery, NORMAL]
-
+## 配送先の変更
 front.shopping.delivery.complete:
-    - [Delivery, NORMAL]
+    - [onFrontChangeTotal, NORMAL]
 
-## 支払い方法判定
+## 支払い方法の変更
 front.shopping.payment.complete:
-    - [Payment, NORMAL]
+    - [onFrontChangeTotal, NORMAL]
 
-## 配送方法設定
+## お届け先の変更
 front.shopping.shipping.complete:
-    - [Shipping, NORMAL]
+    - [onFrontChangeTotal, NORMAL]
 front.shopping.shipping.edit.complete:
-    - [Shipping, NORMAL]
+    - [onFrontChangeTotal, NORMAL]
 
 
 # 画面レンダリング
 ## 管理画面 > 受注編集
 Admin/Order/edit.twig:
     - [onRenderAdminOrderEdit, NORMAL]
+
+## 管理画面 > メール通知
+Admin/Order/mail_confirm.twig:
+    - [onRenderAdminOrderMailConfirm, NORMAL]
+
+Admin/Order/mail_all_confirm.twig:
+    - [onRenderAdminOrderMailConfirm, NORMAL]
+
 ## マイページ
 Mypage/index.twig:
     - [onRenderMyPageIndex, NORMAL]
@@ -73,3 +90,7 @@ Mypage/history.twig:
 ## 受注メール
 mail.order:
     - [onMailOrderComplete, NORMAL]
+
+##  メール通知
+mail.admin.order:
+   - [onMailOrderComplete, NORMAL]

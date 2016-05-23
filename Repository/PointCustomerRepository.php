@@ -1,6 +1,13 @@
 <?php
-
-
+/*
+* This file is part of EC-CUBE
+*
+* Copyright(c) 2000-2016 LOCKON CO.,LTD. All Rights Reserved.
+* http://www.lockon.co.jp/
+*
+* For the full copyright and license information, please view the LICENSE
+* file that was distributed with this source code.
+*/
 namespace Plugin\Point\Repository;
 
 use Doctrine\ORM\EntityRepository;
@@ -27,22 +34,15 @@ class PointCustomerRepository extends EntityRepository
             return false;
         }
 
+        $PointCustomer = new PointCustomer();
+        $PointCustomer->setPlgPointCurrent((integer)$point);
+        $PointCustomer->setCustomer($customer);
 
-        // エンティティにフォーム取得値とリレーションオブジェクトを設定
-        $pointCustomerEntity = new PointCustomer();
-        $pointCustomerEntity->setPlgPointCurrent($point);
-        $pointCustomerEntity->setCustomer($customer);
+        $em = $this->getEntityManager();
+        $em->persist($PointCustomer);
+        $em->flush($PointCustomer);
 
-        try {
-            // DB更新
-            $em = $this->getEntityManager();
-            $em->persist($pointCustomerEntity);
-            $em->flush();
-
-            return $pointCustomerEntity;
-        } catch (NoResultException $e) {
-            throw new NoResultException();
-        }
+        return $PointCustomer;
     }
 
     /**
@@ -65,46 +65,32 @@ class PointCustomerRepository extends EntityRepository
     }
 
     /**
-     * 会員IDをもとに一番最後に保存した保有ポイントを取得
-     * @param $customerId
-     * @return null
-     * @throws \Doctrine\ORM\NonUniqueResultException
+     * 会員IDをもとに一番最後に保存した保有ポイントを取得.
+     *
+     * @param $customerId 会員ID
+     * @return integer
+     * @throws \InvalidArgumentException
      */
     public function getLastPointById($customerId)
     {
         // 引数判定
         if (empty($customerId)) {
-            return null;
+            throw new \InvalidArgumentException('customer_id is empty.');
         }
 
         try {
             // 会員IDをもとに最終保存の保有ポイントを取得
-            $qb = $this->createLastPointBaseQuery();
+            $qb = $this->createQueryBuilder('pc');
             $qb->where('pc.customer_id = :customerId')
                 ->setParameter('customerId', $customerId)
-                ->orderBy('pc.create_date', 'desc')
+                ->orderBy('pc.plg_point_customer_id', 'desc')
                 ->setMaxResults(1);
 
-            $result = $qb->getQuery()->getOneOrNullResult();
+            $PointCustomer = $qb->getQuery()->getSingleResult();
 
-            if (is_null($result)) {
-                return null;
-            }
-
-            return $result->getPlgPointCurrent();
+            return $PointCustomer->getPlgPointCurrent();
         } catch (NoResultException $e) {
-            return null;
+            return 0;
         }
-    }
-
-    /**
-     * 最終データ取得時の共通QueryBuilder作成
-     * @return \Doctrine\ORM\QueryBuilder
-     */
-    protected function createLastPointBaseQuery()
-    {
-        // 最終データ取得共通クエリビルダーを作成
-        return $this->createQueryBuilder('pc')
-            ->orderBy('pc.update_date', 'DESC');
     }
 }

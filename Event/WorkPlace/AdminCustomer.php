@@ -1,14 +1,19 @@
 <?php
-
+/*
+* This file is part of EC-CUBE
+*
+* Copyright(c) 2000-2016 LOCKON CO.,LTD. All Rights Reserved.
+* http://www.lockon.co.jp/
+*
+* For the full copyright and license information, please view the LICENSE
+* file that was distributed with this source code.
+*/
 
 namespace Plugin\Point\Event\WorkPlace;
 
 use Eccube\Event\EventArgs;
-use Eccube\Event\TemplateEvent;
 use Symfony\Component\Form\FormBuilder;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Routing\Exception\MethodNotAllowedException;
 use Symfony\Component\Validator\Constraints as Assert;
 
 /**
@@ -22,17 +27,18 @@ class  AdminCustomer extends AbstractWorkPlace
 {
     /**
      * 会員保有ポイント追加
-     * @param FormBuilder $builder
-     * @param Request $request
+     *
+     * @param EventArgs $event
      */
-    public function createForm(FormBuilder $builder, Request $request)
+    public function createForm(EventArgs $event)
     {
-        $customerId = $builder->getForm()->getData()->getId();
+        $builder = $event->getArgument('builder');
+        $Customer = $event->getArgument('Customer');
 
         // 登録済み情報取得処理
         $lastPoint = null;
-        if (!is_null($customerId)) {
-            $lastPoint = $this->app['eccube.plugin.point.repository.pointcustomer']->getLastPointById($customerId);
+        if (!is_null($Customer->getId())) {
+            $lastPoint = $this->app['eccube.plugin.point.repository.pointcustomer']->getLastPointById($Customer->getId());
         }
 
         $data = is_null($lastPoint) ? '' : $lastPoint;
@@ -52,16 +58,20 @@ class  AdminCustomer extends AbstractWorkPlace
                         'placeholder' => '入力した値でカスタマーの保有ポイントを更新します ( pt )',
                     ),
                     'constraints' => array(
+                        new Assert\Length(
+                            array(
+                                'max' => $this->app['config']['int_len'],
+                            )
+                        ),
                         new Assert\Regex(
                             array(
                                 'pattern' => "/^\d+$/u",
                                 'message' => 'form.type.numeric.invalid',
                             )
                         ),
-                        new Assert\Range(
+                        new Assert\GreaterThanOrEqual(
                             array(
-                                'min' => 0,
-                                'max' => 100000,
+                                'value' => 0
                             )
                         ),
                     ),
@@ -76,6 +86,9 @@ class  AdminCustomer extends AbstractWorkPlace
      */
     public function save(EventArgs $event)
     {
+
+        $this->app['monolog.point.admin']->addInfo('save start');
+
         // フォーム情報取得処理
         $form = $event->getArgument('form');
 
@@ -124,6 +137,15 @@ class  AdminCustomer extends AbstractWorkPlace
             $customer->getId(),
             $orderIds
         );
+
+        $this->app['monolog.point.admin']->addInfo('save add point', array(
+                'customer_id' => $customer->getId(),
+                'status' => $status,
+                'current point' => $calculateCurrentPoint,
+                'add point' => $pointCurrent,
+            )
+        );
+
         $this->app['eccube.plugin.point.history.service']->addEntity($customer);
         $this->app['eccube.plugin.point.history.service']->saveManualpoint($calculateCurrentPoint * -1);
         $this->app['eccube.plugin.point.history.service']->refreshEntity();
@@ -141,5 +163,7 @@ class  AdminCustomer extends AbstractWorkPlace
         $this->app['eccube.plugin.point.history.service']->refreshEntity();
         $this->app['eccube.plugin.point.history.service']->addEntity($customer);
         $this->app['eccube.plugin.point.history.service']->saveSnapShot($point);
+
+        $this->app['monolog.point.admin']->addInfo('save end');
     }
 }

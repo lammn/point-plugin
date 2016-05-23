@@ -5,6 +5,7 @@ sudo: false
 cache:
   directories:
     - $HOME/.composer/cache
+    - /home/travis/.composer/cache
 
 php:
   - 5.3
@@ -25,6 +26,10 @@ env:
     - ECCUBE_VERSION=3.0.10 DB=mysql USER=root DBNAME=myapp_test DBPASS=' ' DBUSER=root
     - ECCUBE_VERSION=3.0.10 DB=pgsql USER=postgres DBNAME=myapp_test DBPASS=password DBUSER=postgres
 
+install:
+  - gem install mime-types -v 2.99.1
+  - gem install mailcatcher
+
 matrix:
   fast_finish: true
 
@@ -38,6 +43,7 @@ before_script:
   - sh -c "if [ ! '${ECCUBE_VERSION}' = 'master' ]; then  git checkout -b ${ECCUBE_VERSION} refs/tags/${ECCUBE_VERSION}; fi"
   # update composer
   - composer selfupdate
+  - composer global require hirak/prestissimo
   - composer install --dev --no-interaction -o
   # install ec-cube
   - sh eccube_install.sh ${DB} none
@@ -45,6 +51,7 @@ before_script:
   - php app/console plugin:develop install --path=${HOME}/${PLUGIN_CODE}.tar.gz
   # enable plugin
   - php app/console plugin:develop enable --code=${PLUGIN_CODE}
+  - mailcatcher
 
 script:
   # exec phpunit on ec-cube
@@ -55,3 +62,7 @@ after_script:
   - php app/console plugin:develop disable --code=${PLUGIN_CODE}
   # uninstall plugin
   - php app/console plugin:develop uninstall --code=${PLUGIN_CODE}
+  # re install plugin
+  - php app/console plugin:develop install --code=${PLUGIN_CODE}
+  # re enable plugin
+  - php app/console plugin:develop enable --code=${PLUGIN_CODE}
